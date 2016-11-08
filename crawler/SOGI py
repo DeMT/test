@@ -1,0 +1,127 @@
+
+# coding: utf-8
+
+# In[1]:
+
+class Requester(object):   
+# base class  
+    headers = {
+        'User-Agent':'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.84 Safari/537.36',
+        
+    }
+    
+    def req(self,url):
+        connection = True
+        import requests
+        from bs4 import BeautifulSoup
+        import time
+        soup=''
+        rs = requests.session()
+        while connection == True:           
+            try:                
+                res = rs.get(url,headers=self.headers)
+                res.encoding = 'utf-8'
+                soup = BeautifulSoup(res.text)                
+                connection = False
+                
+                return soup
+            except:
+                print ('connection error , sleep 1 min' )                         
+                time.sleep(60)
+
+
+# In[2]:
+
+from bs4 import BeautifulSoup as bs
+
+class Crawler(object):
+    empty_flag = False
+    domain = 'https://www.sogi.com.tw/'
+    rs = Requester()    
+    def tagCrawl(self,url,wantedTag):
+        soup = self.rs.req(url)
+        linkList = []
+        for link in soup.select(wantedTag):            
+            linkList.append(self.domain+link['href'])
+        return linkList
+    def get_ajax_list(self,brandUrl ,flag='1'):
+        import requests        
+        rs = Requester()
+        domain = 'https://www.sogi.com.tw'
+        nowBrand = brandUrl.split('/')[-1]
+        nowPage = 0
+        result = []
+        for nowPage in range(0,100):
+            if flag == 'local':
+                soup=rs.req('https://www.sogi.com.tw/brands/not_local_data?brand_id={brand}&panel_index=4&not_local_page={page}'.format(brand = nowBrand,page=nowPage))
+            else:
+                soup=rs.req('https://www.sogi.com.tw/brands/get_off_market_data?brand_id={brand}&panel_index=3&off_market_page={page}'.format(brand = nowBrand,page=nowPage))
+            try:
+                checkExist=type(soup.select('a')[0])
+            except:
+                print('no more page , stop brand  {brand}.'.format(brand = brandUrl.split('/')[-2]))
+                break
+            for a in soup.select('a'):            
+                if not 'compares'  in a['href']  and not 'prices'  in a['href'] :                    
+                    result.append(domain+a['href'].replace('\\\"',''))                     
+        return result
+    def get_on_sale_list(self,brandUrl):
+        rs = Requester()
+        domain = 'https://www.sogi.com.tw'
+        result = []        
+        soup = rs.req(brandUrl)
+        for a in soup.select('.info-title'):
+            b=a.parent['href']
+            result.append(domain+b)
+        return result
+    def contentCrawl(self,url,result_dic):
+        rs = Requester()
+        content_dic = {}
+        self.empty_flag = False
+        soup=rs.req(url)
+        cateName = ''
+        name=soup.select('.fixed-title')[0].text
+        for tr in soup.select('.table.table-bordered tr'):            
+            try:
+                feature=tr.select('td')[0]
+                cateName=tr.select('th')[0]
+                content_dic[cateName.text] = feature.text                
+            except:
+                continue   
+        if  len(content_dic) == 0:
+            print(name , 'empty? whhhhyyyyyy???')
+            print(cateName)
+            self.empty_flag =False
+        result_dic[name] = content_dic
+        return result_dic
+
+
+# In[ ]:
+
+import time 
+phonelist = []
+result_dic = {}
+ts = Crawler()
+brandList=ts.tagCrawl('https://www.sogi.com.tw/brands' ,'.col-md-1.col-sm-3.col-xs-6.pd-10 .text-center' )
+for brand in brandList:
+    phonelist.extend(ts.get_ajax_list(brand))
+    phonelist.extend(ts.get_ajax_list(brand,'local'))
+    phonelist.extend(ts.get_on_sale_list(brand))
+    
+for phone in phonelist:   
+    result_dic=ts.contentCrawl(phone,result_dic)    
+    if ts.empty_flag == True:
+        while ts.empty_flag ==True:
+            print('try again {}'.format(phone))
+            result_dic=ts.contentCrawl(phone,result_dic)
+
+
+# In[5]:
+
+
+
+
+# In[46]:
+
+
+
